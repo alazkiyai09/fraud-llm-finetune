@@ -1,0 +1,6 @@
+{"source": "template", "label": "LEGITIMATE", "narrative": "Monthly salary deposit of $5,200 from Acme Corp to the same checking account, consistent for 18 months with verified KYC profile."}
+{"source": "template", "label": "LEGITIMATE", "narrative": "Merchant settlement from long-term partner for recurring invoice payment, stable amount bands and standard business-hour execution."}
+{"source": "template", "label": "SUSPICIOUS", "narrative": "Three rapid cross-border transfers to a beneficiary with recent profile updates and incomplete supporting documentation."}
+{"source": "template", "label": "SUSPICIOUS", "narrative": "Unusual late-night transaction pattern to a newly added vendor with moderate KYC gaps and atypical transfer velocity."}
+{"source": "template", "label": "FRAUDULENT", "narrative": "Wire transfer of $49,900 to a newly opened offshore account with minimal KYC and immediate onward transfer behavior."}
+{"source": "template", "label": "FRAUDULENT", "narrative": "Repeated deposits just below reporting thresholds at multiple branches within hours, followed by offshore disbursement."}
