@@ -27,8 +27,17 @@ class ClassifyResponse(BaseModel):
     mode: str
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
 MODEL_PATH = os.getenv("MODEL_PATH", str(PROJECT_ROOT / "results" / "merged_model"))
-INFER = FraudLLMInference(model_path=MODEL_PATH)
+ALLOW_RULE_BASED_FALLBACK = _env_flag("ALLOW_RULE_BASED_FALLBACK", False)
+INFER = FraudLLMInference(
+    model_path=MODEL_PATH,
+    strict_loading=not ALLOW_RULE_BASED_FALLBACK,
+    require_artifacts=not ALLOW_RULE_BASED_FALLBACK,
+)
 
 app = FastAPI(title="FraudLLM API", version="0.1.0")
 

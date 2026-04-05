@@ -1,4 +1,5 @@
-from src.train import _build_sft_trainer
+from src.config import ProjectConfig
+from src.train import _build_sft_trainer, _build_training_args_kwargs
 
 
 class _TrainerWithTokenizer:
@@ -69,3 +70,13 @@ def test_build_sft_trainer_uses_processing_class_signature() -> None:
     )
     assert trainer.payload["processing_class"] == "tok"
     assert trainer.payload["max_seq_length"] == 1024
+
+
+def test_build_training_args_kwargs_includes_max_steps_when_positive() -> None:
+    kwargs = _build_training_args_kwargs(ProjectConfig(), "results/out", max_steps=25)
+    assert kwargs["max_steps"] == 25
+
+
+def test_build_training_args_kwargs_omits_max_steps_when_zero() -> None:
+    kwargs = _build_training_args_kwargs(ProjectConfig(), "results/out", max_steps=0)
+    assert "max_steps" not in kwargs

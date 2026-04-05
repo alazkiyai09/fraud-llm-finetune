@@ -1,3 +1,5 @@
+import pytest
+
 from src.inference import FraudLLMInference
 
 
@@ -48,6 +50,19 @@ def test_rule_based_classification_fraudulent() -> None:
     assert "recommended_action" in result
 
 
+def test_rule_based_classification_payroll_is_legitimate() -> None:
+    infer = FraudLLMInference(model_path="/tmp/non-existent-model")
+    description = (
+        "Monthly payroll direct deposit of $3,500 from ABC Corp to employee checking account. "
+        "Regular recurring transaction on the 15th of each month for the past 2 years."
+    )
+
+    result = infer.classify(description)
+
+    assert result["classification"] == "LEGITIMATE"
+    assert result["recommended_action"] == "APPROVE"
+
+
 def test_format_output_roundtrip_parse() -> None:
     infer = FraudLLMInference(model_path="/tmp/non-existent-model")
     parsed = {
@@ -67,3 +82,12 @@ def test_format_output_roundtrip_parse() -> None:
     assert reparsed["classification"] == "LEGITIMATE"
     assert reparsed["recommended_action"] == "APPROVE"
     assert "verified counterparty" in reparsed["risk_factors"]
+
+
+def test_strict_loading_requires_artifacts() -> None:
+    with pytest.raises(FileNotFoundError):
+        FraudLLMInference(
+            model_path="/tmp/non-existent-model",
+            strict_loading=True,
+            require_artifacts=True,
+        )

@@ -59,6 +59,29 @@ class MockKeywordTrainer:
         return {"losses": losses, "train_size": len(train_rows), "val_size": len(val_rows)}
 
 
+def _build_training_args_kwargs(config: ProjectConfig, output_dir: str, max_steps: int) -> dict:
+    kwargs = {
+        "output_dir": output_dir,
+        "num_train_epochs": config.training.num_epochs,
+        "per_device_train_batch_size": config.training.per_device_train_batch_size,
+        "gradient_accumulation_steps": config.training.gradient_accumulation_steps,
+        "learning_rate": config.training.learning_rate,
+        "lr_scheduler_type": config.training.lr_scheduler_type,
+        "warmup_ratio": config.training.warmup_ratio,
+        "weight_decay": config.training.weight_decay,
+        "bf16": config.training.bf16,
+        "fp16": config.training.fp16,
+        "gradient_checkpointing": config.training.gradient_checkpointing,
+        "logging_steps": config.training.logging_steps,
+        "save_strategy": config.training.save_strategy,
+        "evaluation_strategy": config.training.evaluation_strategy,
+        "report_to": [config.training.report_to],
+    }
+    if max_steps > 0:
+        kwargs["max_steps"] = max_steps
+    return kwargs
+
+
 def _build_sft_trainer(
     sft_trainer_cls: type,
     model,
@@ -94,7 +117,13 @@ def _build_sft_trainer(
 
 
 
-def run_real_qlora_training(config: ProjectConfig, train_rows: list[dict], val_rows: list[dict], output_dir: str) -> dict:
+def run_real_qlora_training(
+    config: ProjectConfig,
+    train_rows: list[dict],
+    val_rows: list[dict],
+    output_dir: str,
+    max_steps: int = 0,
+) -> dict:
     try:
         import torch
         from datasets import Dataset
@@ -138,23 +167,7 @@ def run_real_qlora_training(config: ProjectConfig, train_rows: list[dict], val_r
     train_ds = Dataset.from_list([to_text(row) for row in train_rows])
     val_ds = Dataset.from_list([to_text(row) for row in val_rows])
 
-    training_args = TrainingArguments(
-        output_dir=output_dir,
-        num_train_epochs=config.training.num_epochs,
-        per_device_train_batch_size=config.training.per_device_train_batch_size,
-        gradient_accumulation_steps=config.training.gradient_accumulation_steps,
-        learning_rate=config.training.learning_rate,
-        lr_scheduler_type=config.training.lr_scheduler_type,
-        warmup_ratio=config.training.warmup_ratio,
-        weight_decay=config.training.weight_decay,
-        bf16=config.training.bf16,
-        fp16=config.training.fp16,
-        gradient_checkpointing=config.training.gradient_checkpointing,
-        logging_steps=config.training.logging_steps,
-        save_strategy=config.training.save_strategy,
-        evaluation_strategy=config.training.evaluation_strategy,
-        report_to=[config.training.report_to],
-    )
+    training_args = TrainingArguments(**_build_training_args_kwargs(config, output_dir, max_steps))
 
     trainer = _build_sft_trainer(
         sft_trainer_cls=SFTTrainer,
@@ -199,14 +212,19 @@ def main() -> None:
         train_rows = train_rows[: args.dataset_size]
         val_rows = val_rows[: max(1, min(len(val_rows), args.dataset_size // 5))]
 
-    epochs = config.training.num_epochs
-    if args.max_steps > 0:
-        epochs = max(1, min(epochs, args.max_steps))
-
     if args.use_mock_trainer:
-        metrics = MockKeywordTrainer(args.output_dir).train(train_rows, val_rows, epochs)
+        mock_epochs = config.training.num_epochs
+        if args.max_steps > 0:
+            mock_epochs = max(1, min(mock_epochs, args.max_steps))
+        metrics = MockKeywordTrainer(args.output_dir).train(train_rows, val_rows, mock_epochs)
     else:
-        metrics = run_real_qlora_training(config, train_rows, val_rows, args.output_dir)
+        metrics = run_real_qlora_training(
+            config,
+            train_rows,
+            val_rows,
+            args.output_dir,
+            max_steps=args.max_steps,
+        )
 
     metrics_path = Path("results/metrics/training_metrics.json")
     metrics_path.parent.mkdir(parents=True, exist_ok=True)

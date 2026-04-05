@@ -15,12 +15,21 @@ PROMPT_TEMPLATE = (
 
 
 class FraudLLMInference:
-    def __init__(self, model_path: str | None = None) -> None:
+    def __init__(
+        self,
+        model_path: str | None = None,
+        *,
+        strict_loading: bool = False,
+        require_artifacts: bool = False,
+    ) -> None:
         self.model_path = model_path or "results/merged_model"
+        self.strict_loading = strict_loading
+        self.require_artifacts = require_artifacts
         self.mode = "rule_based"
         self.tokenizer = None
         self.model = None
         self.keyword_rules = self._default_rules()
+        self.load_error: str | None = None
 
         self._load_local_artifacts()
 
@@ -65,11 +74,15 @@ class FraudLLMInference:
     def _load_local_artifacts(self) -> None:
         artifact_path = Path(self.model_path)
         if not artifact_path.exists():
+            if self.require_artifacts:
+                raise FileNotFoundError(f"Model artifacts not found at {artifact_path}")
             return
 
         adapter_meta = artifact_path / "mock_adapter.json"
         merged_meta = artifact_path / "mock_merged.json"
         keyword_file = artifact_path / "keyword_rules.json"
+        transformer_config = artifact_path / "config.json"
+        has_mock_artifacts = keyword_file.exists() or adapter_meta.exists() or merged_meta.exists()
 
         if keyword_file.exists():
             self.keyword_rules = json.loads(keyword_file.read_text(encoding="utf-8"))
@@ -78,16 +91,25 @@ class FraudLLMInference:
         if adapter_meta.exists() or merged_meta.exists():
             self.mode = "mock_adapter"
 
-        # Optional HF load for real deployment; skipped gracefully on local tests.
-        try:
-            from transformers import AutoModelForCausalLM, AutoTokenizer
+        if transformer_config.exists():
+            try:
+                from transformers import AutoModelForCausalLM, AutoTokenizer
 
-            if (artifact_path / "config.json").exists() or "/" in self.model_path:
                 self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
                 self.model = AutoModelForCausalLM.from_pretrained(self.model_path)
                 self.mode = "transformers"
-        except Exception:
+                self.load_error = None
+                return
+            except Exception as exc:
+                self.load_error = str(exc)
+                if self.strict_loading:
+                    raise RuntimeError(f"Unable to load transformer artifacts from {artifact_path}") from exc
+
+        if has_mock_artifacts:
             return
+
+        if self.strict_loading:
+            raise RuntimeError(f"No supported model artifacts found at {artifact_path}")
 
     def build_prompt(self, description: str) -> str:
         return PROMPT_TEMPLATE.format(description=description.strip())
@@ -138,9 +160,14 @@ class FraudLLMInference:
                     scores[label] += 1
                     matched.append((label, keyword))
 
+        strong_legitimate_signal = scores["LEGITIMATE"] >= (scores["SUSPICIOUS"] + 2)
+
         if scores["FRAUDULENT"] >= 2:
             classification = "FRAUDULENT"
             action = "BLOCK and file SAR"
+        elif strong_legitimate_signal and scores["FRAUDULENT"] <= 1:
+            classification = "LEGITIMATE"
+            action = "APPROVE"
         elif scores["SUSPICIOUS"] >= 2 or scores["FRAUDULENT"] == 1:
             classification = "SUSPICIOUS"
             action = "REVIEW"
