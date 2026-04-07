@@ -337,8 +337,10 @@ initial_variation = _variation_names(initial_template)[0]
 initial_preview = _template_text(initial_template, initial_variation)
 runtime_title, runtime_detail = _mode_status(INFER.mode)
 
-UI_THEME = gr.themes.Base(primary_hue="blue", secondary_hue="slate")
-UI_CSS = """
+with gr.Blocks(
+    theme=gr.themes.Base(primary_hue="blue", secondary_hue="slate"),
+    title="FraudLLM Sandbox",
+    css="""
     .gradio-container { max-width: 1380px !important; }
     .sidebar-panel {
       background:#0F172A;
@@ -353,9 +355,8 @@ UI_CSS = """
       padding:0.1rem 0.3rem;
       color:#E2E8F0;
     }
-    """
-
-with gr.Blocks(title="FraudLLM Sandbox") as demo:
+    """,
+) as demo:
     gr.Markdown(
         "# FraudLLM - Prompt & Evaluation Sandbox\n"
         "Template-driven narrative testing with explainability mapping and A/B comparison."
@@ -500,9 +501,4 @@ with gr.Blocks(title="FraudLLM Sandbox") as demo:
 
 
 if __name__ == "__main__":
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=int(os.getenv("PORT", "7860")),
-        theme=UI_THEME,
-        css=UI_CSS,
-    )
+    demo.launch(server_name="0.0.0.0", server_port=int(os.getenv("PORT", "7860")))
